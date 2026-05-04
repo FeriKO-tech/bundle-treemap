@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { AlertCircle, FileCheck2, X } from 'lucide-react';
 import DropZone, { type DroppedFile } from './components/DropZone';
+import Treemap from './components/Treemap';
 import { parseBundle, ParseError } from './parsers';
 import type { ParsedBundle, BundleNode } from './lib/types';
 import { formatBytes, formatPercent } from './lib/format-bytes';
@@ -22,12 +23,15 @@ function flattenLeaves(node: BundleNode, prefix = ''): Array<BundleNode & { full
 
 export default function App() {
   const [file, setFile] = useState<DroppedFile | null>(null);
+  const [bundle, setBundle] = useState<ParsedBundle | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const bundle = useMemo<ParsedBundle | null>(() => {
-    if (!file) return null;
+  const handleFile = (nextFile: DroppedFile) => {
     try {
-      return parseBundle({ filename: file.name, text: file.text });
+      const parsed = parseBundle({ filename: nextFile.name, text: nextFile.text });
+      setError(null);
+      setFile(nextFile);
+      setBundle(parsed);
     } catch (err) {
       const message =
         err instanceof ParseError
@@ -35,11 +39,11 @@ export default function App() {
           : err instanceof Error
             ? err.message
             : String(err);
-      // Defer state update to next tick so we don't setState during render.
-      queueMicrotask(() => setError(message));
-      return null;
+      setError(message);
+      setFile(null);
+      setBundle(null);
     }
-  }, [file]);
+  };
 
   const topModules = useMemo(() => {
     if (!bundle) return [];
@@ -66,13 +70,10 @@ export default function App() {
           </span>
         </div>
       </header>
-      <main className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
+      <main className="flex flex-1 flex-col items-center gap-4 overflow-auto p-6">
         {!file && (
           <DropZone
-            onFile={(f) => {
-              setError(null);
-              setFile(f);
-            }}
+            onFile={handleFile}
             onError={(msg) => setError(msg)}
           />
         )}
@@ -83,7 +84,7 @@ export default function App() {
           </div>
         )}
         {file && bundle && (
-          <div className="w-full max-w-3xl space-y-4">
+          <div className="w-full max-w-7xl space-y-4">
             <div className="flex items-center gap-3 rounded-lg border border-border/60 bg-bg-subtle px-4 py-3 dark:border-border-dark/60 dark:bg-bg-dark-subtle">
               <FileCheck2 size={18} className="shrink-0 text-accent" />
               <div className="min-w-0 flex-1">
@@ -96,6 +97,7 @@ export default function App() {
                 type="button"
                 onClick={() => {
                   setFile(null);
+                  setBundle(null);
                   setError(null);
                 }}
                 className="rounded-md p-1.5 text-zinc-500 hover:bg-zinc-200 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
@@ -116,6 +118,7 @@ export default function App() {
               />
               <Stat label="Modules" value={bundle.moduleCount.toLocaleString()} />
             </div>
+            <Treemap root={bundle.root} />
             <div className="rounded-lg border border-border/60 dark:border-border-dark/60">
               <div className="border-b border-border/60 px-4 py-2 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:border-border-dark/60 dark:text-zinc-400">
                 Top 20 modules
@@ -139,9 +142,6 @@ export default function App() {
                 ))}
               </ul>
             </div>
-            <p className="text-center text-xs text-zinc-500 dark:text-zinc-400">
-              Treemap visualization coming next.
-            </p>
           </div>
         )}
       </main>
