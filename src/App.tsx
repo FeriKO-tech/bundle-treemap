@@ -1,6 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, FileCheck2, X } from 'lucide-react';
 import DropZone, { type DroppedFile } from './components/DropZone';
+import ModuleSearch from './components/ModuleSearch';
+import ThemeToggle from './components/ThemeToggle';
 import Treemap from './components/Treemap';
 import { parseBundle, ParseError } from './parsers';
 import type { ParsedBundle, BundleNode } from './lib/types';
@@ -14,17 +16,30 @@ const SOURCE_LABEL: Record<ParsedBundle['source'], string> = {
 };
 
 function flattenLeaves(node: BundleNode, prefix = ''): Array<BundleNode & { fullPath: string }> {
-  const here = prefix ? `${prefix}/${node.name}` : node.name;
   if (!node.children || node.children.length === 0) {
+    const here = prefix ? `${prefix}/${node.name}` : node.name;
     return [{ ...node, fullPath: here }];
   }
-  return node.children.flatMap((c) => flattenLeaves(c, here));
+  const nextPrefix = prefix ? `${prefix}/${node.name}` : '';
+  return node.children.flatMap((c) => flattenLeaves(c, nextPrefix));
 }
 
 export default function App() {
   const [file, setFile] = useState<DroppedFile | null>(null);
   const [bundle, setBundle] = useState<ParsedBundle | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    const stored = localStorage.getItem('bundle-treemap-theme');
+    return stored === 'light' ? 'light' : 'dark';
+  });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [matchCount, setMatchCount] = useState(0);
+  const [hoveredPath, setHoveredPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    localStorage.setItem('bundle-treemap-theme', theme);
+  }, [theme]);
 
   const handleFile = (nextFile: DroppedFile) => {
     try {
@@ -32,6 +47,8 @@ export default function App() {
       setError(null);
       setFile(nextFile);
       setBundle(parsed);
+      setSearchQuery('');
+      setHoveredPath(null);
     } catch (err) {
       const message =
         err instanceof ParseError
@@ -52,6 +69,8 @@ export default function App() {
       .slice(0, 20);
   }, [bundle]);
 
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+
   return (
     <div className="flex h-full flex-col">
       <header className="border-b border-border/60 dark:border-border-dark/60">
@@ -68,6 +87,10 @@ export default function App() {
           <span className="text-xs text-zinc-500 dark:text-zinc-400">
             v0.1.0
           </span>
+          <ThemeToggle
+            theme={theme}
+            onToggle={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
+          />
         </div>
       </header>
       <main className="flex flex-1 flex-col items-center gap-4 overflow-auto p-6">
@@ -99,6 +122,8 @@ export default function App() {
                   setFile(null);
                   setBundle(null);
                   setError(null);
+                  setSearchQuery('');
+                  setHoveredPath(null);
                 }}
                 className="rounded-md p-1.5 text-zinc-500 hover:bg-zinc-200 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
                 aria-label="Clear file"
@@ -118,17 +143,42 @@ export default function App() {
               />
               <Stat label="Modules" value={bundle.moduleCount.toLocaleString()} />
             </div>
-            <Treemap root={bundle.root} />
+            <ModuleSearch
+              value={searchQuery}
+              matchCount={matchCount}
+              onChange={setSearchQuery}
+            />
+            <Treemap
+              root={bundle.root}
+              searchQuery={searchQuery}
+              hoveredPath={hoveredPath}
+              onHover={setHoveredPath}
+              onMatchCountChange={setMatchCount}
+            />
             <div className="rounded-lg border border-border/60 dark:border-border-dark/60">
               <div className="border-b border-border/60 px-4 py-2 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:border-border-dark/60 dark:text-zinc-400">
                 Top 20 modules
               </div>
               <ul className="divide-y divide-border/60 dark:divide-border-dark/60">
-                {topModules.map((m) => (
-                  <li
-                    key={m.fullPath}
-                    className="flex items-center gap-3 px-4 py-2 text-sm"
-                  >
+                {topModules.map((m) => {
+                  const isHovered = hoveredPath === m.fullPath;
+                  const isMatch =
+                    normalizedSearch &&
+                    (m.fullPath.toLowerCase().includes(normalizedSearch) ||
+                      (m.path?.toLowerCase() ?? '').includes(normalizedSearch));
+
+                  return (
+                    <li
+                      key={m.fullPath}
+                      onMouseEnter={() => setHoveredPath(m.fullPath)}
+                      onMouseLeave={() => setHoveredPath(null)}
+                      className={[
+                        'flex items-center gap-3 px-4 py-2 text-sm transition',
+                        isHovered || isMatch
+                          ? 'bg-accent/10'
+                          : 'hover:bg-zinc-50 dark:hover:bg-zinc-900/40',
+                      ].join(' ')}
+                    >
                     <span className="min-w-0 flex-1 truncate font-mono text-xs text-zinc-600 dark:text-zinc-300">
                       {m.fullPath}
                     </span>
@@ -138,8 +188,9 @@ export default function App() {
                     <span className="w-20 shrink-0 text-right text-xs tabular-nums">
                       {formatBytes(m.size)}
                     </span>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           </div>
