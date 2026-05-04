@@ -1,0 +1,48 @@
+{
+  "name": "bundle-treemap",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Interactive treemap visualizer for Vite / Next.js / Webpack bundles. Drop your stats.json — get a beautiful, searchable map of your dependencies.",
+  "keywords": [
+    "bundle",
+    "treemap",
+    "analyzer",
+    "vite",
+    "nextjs",
+    "webpack",
+    "performance",
+    "visualizer",
+    "react",
+    "d3"
+  ],
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "lint": "tsc -b --noEmit"
+  },
+  "dependencies": {
+    "d3-hierarchy": "^3.1.2",
+    "d3-scale": "^4.0.2",
+    "d3-scale-chromatic": "^3.1.0",
+    "lucide-react": "^0.453.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/d3-hierarchy": "^3.1.7",
+    "@types/d3-scale": "^4.0.8",
+    "@types/d3-scale-chromatic": "^3.0.3",
+    "@types/node": "^22.8.6",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.14",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
+  }
+}
