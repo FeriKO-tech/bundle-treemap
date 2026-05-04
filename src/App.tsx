@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, FileCheck2, X } from 'lucide-react';
+import { AlertCircle, FileCheck2, Sparkles, X } from 'lucide-react';
 import DropZone, { type DroppedFile } from './components/DropZone';
 import ModuleSearch from './components/ModuleSearch';
 import ThemeToggle from './components/ThemeToggle';
@@ -7,6 +7,7 @@ import Treemap from './components/Treemap';
 import { parseBundle, ParseError } from './parsers';
 import type { ParsedBundle, BundleNode } from './lib/types';
 import { formatBytes, formatPercent } from './lib/format-bytes';
+import { sampleViteReport } from './data/sample-vite-report';
 
 const SOURCE_LABEL: Record<ParsedBundle['source'], string> = {
   'vite-visualizer': 'Vite (rollup-plugin-visualizer)',
@@ -62,6 +63,14 @@ export default function App() {
     }
   };
 
+  const loadSample = () => {
+    handleFile({
+      name: sampleViteReport.name,
+      size: JSON.stringify(sampleViteReport.data).length,
+      text: JSON.stringify(sampleViteReport.data),
+    });
+  };
+
   const topModules = useMemo(() => {
     if (!bundle) return [];
     return flattenLeaves(bundle.root)
@@ -84,21 +93,33 @@ export default function App() {
             </div>
             <h1 className="font-semibold tracking-tight">Bundle Treemap</h1>
           </div>
-          <span className="text-xs text-zinc-500 dark:text-zinc-400">
-            v0.1.0
-          </span>
-          <ThemeToggle
-            theme={theme}
-            onToggle={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
-          />
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">
+              v0.1.0
+            </span>
+            <ThemeToggle
+              theme={theme}
+              onToggle={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
+            />
+          </div>
         </div>
       </header>
       <main className="flex flex-1 flex-col items-center gap-4 overflow-auto p-6">
         {!file && (
-          <DropZone
-            onFile={handleFile}
-            onError={(msg) => setError(msg)}
-          />
+          <div className="flex w-full flex-1 flex-col items-center justify-center gap-4">
+            <DropZone
+              onFile={handleFile}
+              onError={(msg) => setError(msg)}
+            />
+            <button
+              type="button"
+              onClick={loadSample}
+              className="inline-flex items-center gap-2 rounded-lg border border-accent/30 bg-accent/10 px-4 py-2 text-sm font-medium text-accent transition hover:border-accent/60 hover:bg-accent/15"
+            >
+              <Sparkles size={16} />
+              Load sample report
+            </button>
+          </div>
         )}
         {error && (
           <div className="flex max-w-2xl items-start gap-2 rounded-lg border border-red-500/40 bg-red-500/5 px-4 py-3 text-sm text-red-600 dark:text-red-400">
