@@ -248,11 +248,11 @@ export default function Treemap({
             <dd className="text-right font-mono tabular-nums">{formatBytes(tooltip.size)}</dd>
             <dt className="text-zinc-500 dark:text-zinc-400">Gzip</dt>
             <dd className="text-right font-mono tabular-nums">
-              {tooltip.gzipSize ? formatBytes(tooltip.gzipSize) : '—'}
+              {tooltip.gzipSize ? formatBytes(tooltip.gzipSize) : '-'}
             </dd>
             <dt className="text-zinc-500 dark:text-zinc-400">Brotli</dt>
             <dd className="text-right font-mono tabular-nums">
-              {tooltip.brotliSize ? formatBytes(tooltip.brotliSize) : '—'}
+              {tooltip.brotliSize ? formatBytes(tooltip.brotliSize) : '-'}
             </dd>
             <dt className="text-zinc-500 dark:text-zinc-400">Group</dt>
             <dd className="truncate text-right font-mono">{tooltip.group}</dd>

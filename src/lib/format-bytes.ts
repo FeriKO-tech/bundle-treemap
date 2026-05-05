@@ -21,6 +21,6 @@ export function formatBytes(bytes: number, fractionDigits = 2): string {
 
 /** Format a percentage (0..1) with sane defaults. */
 export function formatPercent(ratio: number, fractionDigits = 1): string {
-  if (!Number.isFinite(ratio)) return '—';
+  if (!Number.isFinite(ratio)) return '-';
   return `${(ratio * 100).toFixed(fractionDigits)}%`;
 }

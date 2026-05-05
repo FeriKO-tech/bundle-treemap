@@ -14,13 +14,13 @@ export interface ParseInput {
  *
  * Detection priority:
  *   1. Filename hint for Next.js (`client.json` / `nodejs.json` / `edge.json`)
- *   2. JSON shape — array → webpack-bundle-analyzer; object with tree/nodes → vite
+ *   2. JSON shape - array -> webpack-bundle-analyzer; object with tree/nodes -> vite
  *   3. Throw a friendly `ParseError` otherwise
  */
 export function parseBundle({ filename, text }: ParseInput): ParsedBundle {
   if (filename.toLowerCase().endsWith('.html')) {
     throw new ParseError(
-      'HTML reports are not supported yet — drop the JSON file instead. ' +
+      'HTML reports are not supported yet - drop the JSON file instead. ' +
         'For webpack-bundle-analyzer use --mode static --report-json, ' +
         'for Next.js read the JSON files inside `.next/analyze/`.',
     );
@@ -35,7 +35,7 @@ export function parseBundle({ filename, text }: ParseInput): ParsedBundle {
     );
   }
 
-  // Filename hint takes priority — Next.js uses webpack-analyzer shape but
+  // Filename hint takes priority - Next.js uses webpack-analyzer shape but
   // we want to badge it as Next.js so the user sees the right label.
   if (isNextAnalyzeFilename(filename) && canParseWebpack(json)) {
     return parseNext(json);

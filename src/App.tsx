@@ -159,7 +159,7 @@ export default function App() {
                 value={
                   bundle.totalGzipSize
                     ? formatBytes(bundle.totalGzipSize)
-                    : '—'
+                    : '-'
                 }
               />
               <Stat label="Modules" value={bundle.moduleCount.toLocaleString()} />

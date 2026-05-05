@@ -6,10 +6,10 @@ import { ParseError } from '../lib/types';
  *
  * Supports two shapes:
  *
- * 1. **Modern (v5+)** — { version, tree, nodes, nodeParts? } where leaves in `tree`
+ * 1. **Modern (v5+)** - { version, tree, nodes, nodeParts? } where leaves in `tree`
  *    carry a `uid` pointing into `nodes` for size info.
  *
- * 2. **Legacy / raw-tree** — a single tree node with embedded `size` / `children`,
+ * 2. **Legacy / raw-tree** - a single tree node with embedded `size` / `children`,
  *    as produced by some older versions or custom emitters.
  */
 
@@ -63,7 +63,7 @@ function convertModern(
   node: RawTreeNode,
   nodes: Record<string, RawNodeMeta>,
 ): BundleNode {
-  // Leaf — has uid pointing into nodes meta.
+  // Leaf - has uid pointing into nodes meta.
   if (node.uid && nodes[node.uid]) {
     const meta = nodes[node.uid];
     return {
@@ -74,7 +74,7 @@ function convertModern(
     };
   }
 
-  // Internal — recurse and aggregate sizes from children.
+  // Internal - recurse and aggregate sizes from children.
   const children = (node.children ?? [])
     .map((c) => convertModern(c, nodes))
     .filter((c) => c.size > 0 || (c.children && c.children.length > 0));

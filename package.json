@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Interactive treemap visualizer for Vite / Next.js / Webpack bundles. Drop your stats.json — get a beautiful, searchable map of your dependencies.",
+  "description": "Interactive treemap visualizer for Vite / Next.js / Webpack bundles. Drop your stats.json - get a beautiful, searchable map of your dependencies.",
   "keywords": [
     "bundle",
     "treemap",

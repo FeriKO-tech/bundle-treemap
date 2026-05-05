@@ -43,7 +43,7 @@ export function buildTreemap(
 }
 
 /**
- * Top-level group (depth=1) of a node — used for stable colour assignment
+ * Top-level group (depth=1) of a node - used for stable colour assignment
  * so all descendants of `node_modules/react` share the same hue.
  */
 export function topGroupName(node: TreemapNode): string {
