@@ -1,0 +1,46 @@
+name: Bundle Diff
+description: Comment a bundle-size diff on a pull request using bundle-treemap reports.
+author: bundle-treemap
+
+inputs:
+  current:
+    description: Path to the bundle-treemap report JSON for the current PR head.
+    required: true
+  base:
+    description: Path to the baseline bundle-treemap report JSON (e.g. main branch).
+    required: false
+  github-token:
+    description: GitHub token used to post the PR comment. Defaults to the workflow token.
+    required: true
+  comment-marker:
+    description: Hidden HTML marker used to find and update an existing diff comment.
+    required: false
+    default: "<!-- bundle-treemap-diff -->"
+  warn-bytes:
+    description: Total delta in bytes that triggers a warning emoji on the PR comment.
+    required: false
+    default: "10240"
+
+outputs:
+  delta-bytes:
+    description: Total size delta (after - before) in bytes.
+    value: ${{ steps.diff.outputs.delta-bytes }}
+  comment-id:
+    description: ID of the created or updated PR comment.
+    value: ${{ steps.diff.outputs.comment-id }}
+
+runs:
+  using: composite
+  steps:
+    - id: diff
+      shell: bash
+      env:
+        INPUT_CURRENT: ${{ inputs.current }}
+        INPUT_BASE: ${{ inputs.base }}
+        INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
+        INPUT_COMMENT_MARKER: ${{ inputs.comment-marker }}
+        INPUT_WARN_BYTES: ${{ inputs.warn-bytes }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_EVENT_PATH: ${{ github.event_path }}
+        GITHUB_EVENT_NAME: ${{ github.event_name }}
+      run: node "$GITHUB_ACTION_PATH/diff.mjs"

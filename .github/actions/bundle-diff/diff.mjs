@@ -1,0 +1,231 @@
+#!/usr/bin/env node
+/**
+ * bundle-diff GitHub Action runner.
+ *
+ * Reads two bundle-treemap report JSONs (current and base), computes the
+ * per-module diff, and posts (or updates) a comment on the pull request that
+ * triggered the workflow. Updates an existing comment in-place via a hidden
+ * HTML marker so the PR thread doesn't fill up.
+ *
+ * Inputs are passed via INPUT_* env vars from action.yml.
+ */
+
+import { readFile, appendFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+
+const env = process.env;
+
+const CURRENT = env.INPUT_CURRENT;
+const BASE = env.INPUT_BASE || '';
+const TOKEN = env.INPUT_GITHUB_TOKEN;
+const MARKER = env.INPUT_COMMENT_MARKER || '<!-- bundle-treemap-diff -->';
+const WARN_BYTES = parseInt(env.INPUT_WARN_BYTES || '10240', 10);
+const REPO = env.GITHUB_REPOSITORY;
+const EVENT_PATH = env.GITHUB_EVENT_PATH;
+const EVENT_NAME = env.GITHUB_EVENT_NAME;
+const OUTPUT_FILE = env.GITHUB_OUTPUT;
+
+function fail(msg, code = 1) { process.stderr.write(msg + '\n'); process.exit(code); }
+function info(msg) { process.stdout.write(msg + '\n'); }
+
+async function setOutput(key, value) {
+  if (!OUTPUT_FILE) return;
+  await appendFile(OUTPUT_FILE, `${key}=${value}\n`);
+}
+
+function formatBytes(bytes) {
+  if (!bytes || bytes === 0) return '0 B';
+  const sign = bytes < 0 ? '-' : '';
+  const abs = Math.abs(bytes);
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const exp = Math.min(Math.floor(Math.log(abs) / Math.log(1024)), units.length - 1);
+  const value = abs / Math.pow(1024, exp);
+  const digits = exp === 0 ? 0 : value >= 100 ? 0 : value >= 10 ? 1 : 2;
+  return `${sign}${value.toFixed(digits)} ${units[exp]}`;
+}
+
+function pct(num, den) {
+  if (!den || den === 0) return '0.00%';
+  return `${(num / den * 100).toFixed(2)}%`;
+}
+
+function indexLeaves(node, prefix, out) {
+  if (!node) return;
+  if (!node.children || node.children.length === 0) {
+    const path = prefix ? `${prefix}/${node.name}` : node.name;
+    out.set(path, { size: node.size, name: node.name });
+    return;
+  }
+  const next = prefix ? `${prefix}/${node.name}` : '';
+  for (const c of node.children) indexLeaves(c, next, out);
+}
+
+function indexBundle(report) {
+  const out = new Map();
+  if (report.root.children) {
+    for (const child of report.root.children) indexLeaves(child, '', out);
+  } else {
+    indexLeaves(report.root, '', out);
+  }
+  return out;
+}
+
+function diffReports(before, after) {
+  const a = indexBundle(before);
+  const b = indexBundle(after);
+  const all = new Set([...a.keys(), ...b.keys()]);
+  const added = [], removed = [], changed = [];
+  for (const path of all) {
+    const beforeSize = a.get(path)?.size ?? 0;
+    const afterSize = b.get(path)?.size ?? 0;
+    if (beforeSize === afterSize) continue;
+    const delta = afterSize - beforeSize;
+    const node = { path, beforeSize, afterSize, delta, absDelta: Math.abs(delta) };
+    if (beforeSize === 0) added.push(node);
+    else if (afterSize === 0) removed.push(node);
+    else changed.push(node);
+  }
+  const top = [...added, ...removed, ...changed].sort((x, y) => y.absDelta - x.absDelta).slice(0, 15);
+  return {
+    totalBefore: before.totalSize,
+    totalAfter: after.totalSize,
+    totalDelta: after.totalSize - before.totalSize,
+    added, removed, changed, top,
+  };
+}
+
+function statusIcon(node) {
+  if (node.beforeSize === 0) return ':sparkles:';
+  if (node.afterSize === 0) return ':wastebasket:';
+  return node.delta > 0 ? ':warning:' : ':white_check_mark:';
+}
+
+function buildMarkdown(diff, current, base) {
+  const headerIcon = diff.totalDelta > WARN_BYTES
+    ? ':warning:'
+    : diff.totalDelta < -WARN_BYTES
+      ? ':rocket:'
+      : ':balance_scale:';
+
+  const lines = [];
+  lines.push(MARKER);
+  lines.push(`## ${headerIcon} Bundle size diff`);
+  lines.push('');
+  lines.push('| | Before | After | Delta |');
+  lines.push('|---|---:|---:|---:|');
+  lines.push(`| **Total** | ${formatBytes(diff.totalBefore)} | ${formatBytes(diff.totalAfter)} | ${formatBytes(diff.totalDelta)} (${pct(diff.totalDelta, diff.totalBefore)}) |`);
+  lines.push('');
+  lines.push(`- :sparkles: Added: **${diff.added.length}**`);
+  lines.push(`- :wastebasket: Removed: **${diff.removed.length}**`);
+  lines.push(`- :arrows_counterclockwise: Changed: **${diff.changed.length}**`);
+  lines.push('');
+
+  if (diff.top.length > 0) {
+    lines.push('<details><summary>Top changes</summary>');
+    lines.push('');
+    lines.push('| | Module | Before | After | Delta |');
+    lines.push('|---|---|---:|---:|---:|');
+    for (const node of diff.top) {
+      const path = node.path.length > 80 ? `\u2026${node.path.slice(-77)}` : node.path;
+      lines.push(`| ${statusIcon(node)} | \`${path}\` | ${formatBytes(node.beforeSize)} | ${formatBytes(node.afterSize)} | ${formatBytes(node.delta)} |`);
+    }
+    lines.push('');
+    lines.push('</details>');
+    lines.push('');
+  }
+
+  lines.push('<sub>');
+  lines.push(`Generated by <a href="https://github.com/FeriKO-tech/bundle-treemap">bundle-treemap</a>. Reports: \`${base}\` \u2192 \`${current}\`.`);
+  lines.push('</sub>');
+  return lines.join('\n');
+}
+
+async function getPullRequestNumber() {
+  if (!EVENT_PATH || !existsSync(EVENT_PATH)) return null;
+  const event = JSON.parse(await readFile(EVENT_PATH, 'utf8'));
+  if (event.pull_request?.number) return event.pull_request.number;
+  if (event.issue?.number && event.issue.pull_request) return event.issue.number;
+  return null;
+}
+
+async function gh(method, path, body) {
+  const res = await fetch(`https://api.github.com${path}`, {
+    method,
+    headers: {
+      'Authorization': `Bearer ${TOKEN}`,
+      'Accept': 'application/vnd.github+json',
+      'User-Agent': 'bundle-treemap-action',
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const text = await res.text();
+  let json = null;
+  try { json = text ? JSON.parse(text) : null; } catch { /* keep raw */ }
+  if (!res.ok) {
+    const detail = json?.message || text || `${res.status} ${res.statusText}`;
+    throw new Error(`GitHub API ${method} ${path} failed: ${detail}`);
+  }
+  return json;
+}
+
+async function findExistingComment(prNumber) {
+  let page = 1;
+  while (true) {
+    const items = await gh('GET', `/repos/${REPO}/issues/${prNumber}/comments?per_page=100&page=${page}`);
+    if (!Array.isArray(items) || items.length === 0) return null;
+    const found = items.find((c) => typeof c.body === 'string' && c.body.includes(MARKER));
+    if (found) return found;
+    if (items.length < 100) return null;
+    page++;
+  }
+}
+
+async function postOrUpdateComment(prNumber, body) {
+  const existing = await findExistingComment(prNumber);
+  if (existing) {
+    info(`Updating existing comment #${existing.id}`);
+    return await gh('PATCH', `/repos/${REPO}/issues/comments/${existing.id}`, { body });
+  }
+  info(`Creating new comment on PR #${prNumber}`);
+  return await gh('POST', `/repos/${REPO}/issues/${prNumber}/comments`, { body });
+}
+
+async function main() {
+  if (!CURRENT) fail('Missing required input: current');
+  if (!TOKEN) fail('Missing required input: github-token');
+  if (!REPO) fail('Missing GITHUB_REPOSITORY');
+
+  if (!existsSync(CURRENT)) fail(`Current report not found: ${CURRENT}`);
+  const current = JSON.parse(await readFile(CURRENT, 'utf8'));
+
+  if (!BASE) {
+    info('No base report provided - skipping diff comment.');
+    info(`Current bundle: ${formatBytes(current.totalSize)} (${current.moduleCount} modules)`);
+    await setOutput('delta-bytes', '0');
+    return;
+  }
+  if (!existsSync(BASE)) {
+    info(`Base report not found at ${BASE} - skipping diff (likely first run on this branch).`);
+    await setOutput('delta-bytes', String(current.totalSize));
+    return;
+  }
+  const base = JSON.parse(await readFile(BASE, 'utf8'));
+
+  const diff = diffReports(base, current);
+  info(`Total: ${formatBytes(diff.totalBefore)} \u2192 ${formatBytes(diff.totalAfter)} (delta ${formatBytes(diff.totalDelta)})`);
+  await setOutput('delta-bytes', String(diff.totalDelta));
+
+  if (EVENT_NAME !== 'pull_request' && EVENT_NAME !== 'pull_request_target') {
+    info(`Event "${EVENT_NAME}" is not a PR - skipping comment.`);
+    return;
+  }
+  const prNumber = await getPullRequestNumber();
+  if (!prNumber) { info('No PR number resolved from event payload - skipping comment.'); return; }
+
+  const body = buildMarkdown(diff, CURRENT, BASE);
+  const comment = await postOrUpdateComment(prNumber, body);
+  if (comment?.id !== undefined) await setOutput('comment-id', String(comment.id));
+}
+
+main().catch((e) => fail(e?.stack || String(e), 1));

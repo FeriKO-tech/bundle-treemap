@@ -3,6 +3,9 @@ import { ParseError } from '../lib/types';
 import { canParseVite, parseVite } from './vite';
 import { canParseWebpack, parseWebpack } from './webpack';
 import { isNextAnalyzeFilename, parseNext } from './nextjs';
+import { parseFolder } from './folder';
+import type { WalkedFolder } from '../lib/folder-walker';
+import { pickReport } from '../lib/folder-walker';
 
 export interface ParseInput {
   filename: string;
@@ -55,5 +58,25 @@ export function parseBundle({ filename, text }: ParseInput): ParsedBundle {
   );
 }
 
-export { parseVite, parseWebpack, parseNext };
+/**
+ * Parse a dropped folder. Tries to find a known analyzer report inside
+ * (`stats.json`, `client.json`, etc.) and falls back to a size-only tree
+ * built from the on-disk file sizes when no report is present.
+ */
+export function parseBundleFromFolder(folder: WalkedFolder): ParsedBundle {
+  const report = pickReport(folder.files);
+  if (report && report.text !== undefined) {
+    try {
+      return parseBundle({ filename: report.path, text: report.text });
+    } catch {
+      // Report file present but unparseable - fall through to size-only.
+    }
+  }
+  if (folder.files.length === 0) {
+    throw new ParseError(`Folder "${folder.name}" is empty.`);
+  }
+  return parseFolder({ rootName: folder.name, files: folder.files });
+}
+
+export { parseVite, parseWebpack, parseNext, parseFolder };
 export { ParseError };

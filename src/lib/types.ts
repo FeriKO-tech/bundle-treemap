@@ -18,6 +18,7 @@ export type BundleSource =
   | 'vite-visualizer'
   | 'webpack-analyzer'
   | 'nextjs-analyze'
+  | 'folder'
   | 'unknown';
 
 export interface ParsedBundle {

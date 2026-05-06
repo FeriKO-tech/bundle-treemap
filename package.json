@@ -1,6 +1,5 @@
 {
   "name": "bundle-treemap",
-  "private": true,
   "version": "0.1.0",
   "type": "module",
   "description": "Interactive treemap visualizer for Vite / Next.js / Webpack bundles. Drop your stats.json - get a beautiful, searchable map of your dependencies.",
@@ -17,11 +16,23 @@
     "d3"
   ],
   "license": "MIT",
+  "bin": {
+    "bundle-treemap": "./cli/bundle-treemap.mjs"
+  },
+  "files": [
+    "cli",
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "lint": "tsc -b --noEmit"
+    "lint": "tsc -b --noEmit",
+    "cli": "node cli/bundle-treemap.mjs"
   },
   "dependencies": {
     "d3-hierarchy": "^3.1.2",

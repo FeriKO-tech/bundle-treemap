@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type MouseEvent } from 'react';
+import { useEffect, useMemo, useState, type MouseEvent, type RefObject } from 'react';
 import { scaleOrdinal } from 'd3-scale';
 import { schemeTableau10 } from 'd3-scale-chromatic';
 import { buildTreemap, fullPath, topGroupName } from '../lib/d3-treemap';
@@ -13,6 +13,8 @@ interface TreemapProps {
   hoveredPath?: string | null;
   onHover?: (path: string | null) => void;
   onMatchCountChange?: (count: number) => void;
+  /** Optional ref to access the underlying <svg> for export. */
+  svgRef?: RefObject<SVGSVGElement>;
 }
 
 interface TooltipState {
@@ -35,6 +37,7 @@ export default function Treemap({
   hoveredPath,
   onHover,
   onMatchCountChange,
+  svgRef,
 }: TreemapProps) {
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
 
@@ -99,6 +102,7 @@ export default function Treemap({
   return (
     <div className="relative overflow-hidden rounded-xl border border-border/60 bg-white shadow-sm dark:border-border-dark/60 dark:bg-bg-dark-subtle">
       <svg
+        ref={svgRef}
         viewBox={`0 0 ${width} ${height}`}
         role="img"
         aria-label="Bundle treemap"
